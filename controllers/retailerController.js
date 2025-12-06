@@ -4,6 +4,7 @@ import cloudinary from "../config/cloudinary.js";
 import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import uploadToCloudinary from "../utils/uploadToCloudinary.js";
+import mongoose from "mongoose";
 
 // ✅ Get Retailer Profile
 export const getRetailerProfile = async (req, res) => {
