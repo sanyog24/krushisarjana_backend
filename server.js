@@ -16,14 +16,33 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "https://krushi-sarjana.vercel.app"],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-  })
-);
+
+// ✅ CORS Configuration - Allow production frontend
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://krushi-sarjana.vercel.app'
+    ];
+    // Allow requests with no origin (like mobile apps, Postman, or same-origin)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // ✅ MongoDB Connection with caching for Vercel
 let cached = global.mongoose;
@@ -71,23 +90,35 @@ async function dbConnect() {
 }
 
 // ✅ Connect DB on startup
-dbConnect().catch(err => {
-  console.error('Initial database connection failed:', err.message);
-});
+dbConnect()
+  .then(() => console.log('Initial DB connection successful'))
+  .catch(err => {
+    console.error('❌ Initial database connection failed:', err.message);
+    console.error('Error details:', err);
+  });
 
 // ✅ Health check routes
 app.get("/", async (req, res) => {
   let dbStatus = 'disconnected';
+  let dbError = null;
+  
   try {
-    if (mongoose.connection.readyState === 1) {
+    const state = mongoose.connection.readyState;
+    console.log('Current DB state:', state); // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+    
+    if (state === 1) {
       dbStatus = 'connected';
-    } else {
+    } else if (state === 0) {
       // Try to reconnect if disconnected
+      console.log('Attempting to reconnect to database...');
       await dbConnect();
-      dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+      dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'connecting';
+    } else if (state === 2) {
+      dbStatus = 'connecting';
     }
   } catch (error) {
-    console.error('DB check error:', error.message);
+    console.error('❌ DB check error:', error.message);
+    dbError = error.message;
   }
   
   res.json({ 
@@ -95,7 +126,9 @@ app.get("/", async (req, res) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
     dbStatus,
-    env: process.env.NODE_ENV || 'development'
+    dbError,
+    env: process.env.NODE_ENV || 'development',
+    mongoUriConfigured: !!process.env.MONGODB_URI
   });
 });
 
