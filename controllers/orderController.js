@@ -51,21 +51,32 @@ export const createOrder = async (req, res) => {
 
     const buyer = await User.findById(buyerId);
     if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+    console.log("[createOrder] Buyer found:", buyer._id, buyer.name);
 
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
+    console.log("[createOrder] Product found:", product._id, product.name);
 
     const seller = await User.findById(product.seller);
     if (!seller) return res.status(404).json({ message: "Seller not found" });
+    console.log("[createOrder] Seller found:", seller._id, seller.name);
 
     const newOrder = new Order({
       orderId: uuidv4(),
-      buyer: { _id: buyer._id, name: buyer.name, role: buyer.role },
+      buyer: { 
+        _id: new mongoose.Types.ObjectId(buyer._id), 
+        name: buyer.name, 
+        role: buyer.role 
+      },
       product: {
-        _id: product._id,
+        _id: new mongoose.Types.ObjectId(product._id),
         name: product.name,
         image : product.image,
-        seller: { _id: seller._id, name: seller.name, role: seller.role },
+        seller: { 
+          _id: new mongoose.Types.ObjectId(seller._id), 
+          name: seller.name, 
+          role: seller.role 
+        },
       },
       paymentId,
       paymentStatus: "Pending",
@@ -74,7 +85,9 @@ export const createOrder = async (req, res) => {
       orderStatus: "Pending",
     });
 
+    console.log("[createOrder] New order object:", JSON.stringify(newOrder, null, 2));
     await newOrder.save();
+    console.log("[createOrder] Order saved successfully:", newOrder._id);
     res.status(201).json({ message: "Order placed successfully", order: newOrder });
   } catch (error) {
     console.error("Create Order Error:", error);
@@ -105,7 +118,8 @@ export const getUserOrders = async (req, res) => {
     }
 
     const { userId } = req.params;
-    console.log("[getUserOrders] User ID:", userId);
+    console.log("[getUserOrders] User ID from params:", userId);
+    console.log("[getUserOrders] User ID type:", typeof userId);
     
     if (!userId) {
       console.error("[getUserOrders] User ID is missing");
@@ -113,14 +127,26 @@ export const getUserOrders = async (req, res) => {
     }
 
     // Convert userId string to ObjectId for proper MongoDB query
-    const objectId = new mongoose.Types.ObjectId(userId);
-    console.log("[getUserOrders] Converted to ObjectId:", objectId);
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(userId);
+      console.log("[getUserOrders] Converted to ObjectId:", objectId);
+    } catch (err) {
+      console.error("[getUserOrders] Invalid ObjectId format:", err.message);
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
 
+    // First, let's check all orders to see what's in the database
+    const allOrders = await Order.find({}).limit(5);
+    console.log("[getUserOrders] Sample of all orders in DB:", JSON.stringify(allOrders, null, 2));
+
+    // Now query for this specific user
     const orders = await Order.find({
       $or: [{ "buyer._id": objectId }, { "product.seller._id": objectId }],
     });
 
     console.log(`[getUserOrders] Found ${orders.length} orders for user ${userId}`);
+    console.log("[getUserOrders] Orders found:", JSON.stringify(orders, null, 2));
 
     if (!orders.length) {
       return res.status(200).json([]); // Return empty array instead of 404
