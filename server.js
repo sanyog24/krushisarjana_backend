@@ -44,7 +44,7 @@ app.use(cors(corsOptions));
 // Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// ✅ MongoDB Connection with caching for Vercel
+// ✅ MongoDB Connection with caching for Vercel (Serverless)
 let cached = global.mongoose;
 
 if (!cached) {
@@ -53,27 +53,33 @@ if (!cached) {
 
 async function dbConnect() {
   if (cached.conn) {
-    console.log('Using cached database connection');
-    return cached.conn;
+    const state = cached.conn.connection.readyState;
+    if (state === 1) {
+      return cached.conn;
+    }
   }
 
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
+      minPoolSize: 2,
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
+      family: 4,
+      retryWrites: true,
+      retryReads: true,
     };
 
-    console.log('Creating new database connection...');
     cached.promise = mongoose.connect(process.env.MONGODB_URI, opts)
       .then((mongoose) => {
-        console.log('✅ MongoDB Connected');
+        console.log('✅ MongoDB Connected Successfully');
         return mongoose;
       })
       .catch((error) => {
         console.error('❌ MongoDB Connection Error:', error.message);
         cached.promise = null;
+        cached.conn = null;
         throw error;
       });
   }
@@ -82,6 +88,7 @@ async function dbConnect() {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    cached.conn = null;
     console.error('❌ Failed to establish database connection:', e.message);
     throw e;
   }
@@ -89,53 +96,42 @@ async function dbConnect() {
   return cached.conn;
 }
 
-// ✅ Connect DB on startup
-dbConnect()
-  .then(() => console.log('Initial DB connection successful'))
-  .catch(err => {
-    console.error('❌ Initial database connection failed:', err.message);
-    console.error('Error details:', err);
-  });
+// ✅ Middleware to ensure DB connection before each request
+app.use(async (req, res, next) => {
+  try {
+    await dbConnect();
+    next();
+  } catch (error) {
+    console.error('DB Connection middleware error:', error);
+    res.status(503).json({ 
+      message: 'Database connection unavailable',
+      error: error.message 
+    });
+  }
+});
 
 // ✅ Health check routes
 app.get("/", async (req, res) => {
-  let dbStatus = 'disconnected';
-  let dbError = null;
-  
-  try {
-    const state = mongoose.connection.readyState;
-    console.log('Current DB state:', state); // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
-    
-    if (state === 1) {
-      dbStatus = 'connected';
-    } else if (state === 0) {
-      // Try to reconnect if disconnected
-      console.log('Attempting to reconnect to database...');
-      await dbConnect();
-      dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'connecting';
-    } else if (state === 2) {
-      dbStatus = 'connecting';
-    }
-  } catch (error) {
-    console.error('❌ DB check error:', error.message);
-    dbError = error.message;
-  }
+  const state = mongoose.connection.readyState;
+  const dbStatus = state === 1 ? 'connected' : state === 2 ? 'connecting' : state === 3 ? 'disconnecting' : 'disconnected';
   
   res.json({ 
     message: "Krushi Sarjana Backend API", 
     status: "healthy",
     timestamp: new Date().toISOString(),
     dbStatus,
-    dbError,
+    dbState: state,
     env: process.env.NODE_ENV || 'development',
     mongoUriConfigured: !!process.env.MONGODB_URI
   });
 });
 
 app.get("/api/health", (req, res) => {
+  const state = mongoose.connection.readyState;
   res.json({ 
     status: "healthy",
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: state === 1 ? 'connected' : 'disconnected',
+    dbState: state,
     timestamp: new Date().toISOString()
   });
 });

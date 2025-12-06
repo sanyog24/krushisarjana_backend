@@ -120,35 +120,62 @@ export const upsertRetailerProfile = async (req, res) => {
 
 export const addProduct = async (req, res) => {
   try {
+    console.log("[addProduct] Request received");
+    console.log("[addProduct] User:", req.user);
+    console.log("[addProduct] Body:", req.body);
+    console.log("[addProduct] File:", req.file ? "Present" : "None");
+
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error("[addProduct] Database not connected");
+      return res.status(503).json({ message: "Database connection unavailable" });
+    }
+
     const { name, category, price, stock, unit, description, sellerType } = req.body;
 
+    // Validate required fields
+    if (!name || !category || !price) {
+      console.error("[addProduct] Missing required fields");
+      return res.status(400).json({ message: "Name, category, and price are required" });
+    }
+
     if (req.user.role === "Customer") {
-      return res.status(403).json({ message: "Unauthorized: Only retailers can add products" });
+      return res.status(403).json({ message: "Unauthorized: Only retailers and farmers can add products" });
     }
 
     let imageUrl = "";
     if (req.file) {
+      console.log("[addProduct] Uploading image to Cloudinary...");
       const result = await uploadToCloudinary(req.file.buffer, "product_images");
       imageUrl = result.secure_url;
+      console.log("[addProduct] Image uploaded:", imageUrl);
     }
 
     const product = new Product({
       name,
       category,
-      price,
-      stock,
-      unit,
-      description,
+      price: parseFloat(price),
+      stock: stock ? parseInt(stock) : 0,
+      unit: unit || "piece",
+      description: description || "",
       image: imageUrl,
       seller: req.user.id,
-      sellerType: sellerType  // ✅ Use sellerType from frontend, default to "Retailer" if missing
+      sellerType: sellerType || req.user.role
     });
 
+    console.log("[addProduct] Saving product to database...");
     await product.save();
+    console.log("[addProduct] Product saved successfully:", product._id);
+    
     res.status(201).json({ message: "Product added successfully", product });
   } catch (error) {
-    console.error("Add Product Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("[addProduct] Error:", error);
+    console.error("[addProduct] Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Failed to add product",
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 };
 

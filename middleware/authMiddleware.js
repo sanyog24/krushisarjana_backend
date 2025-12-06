@@ -10,15 +10,18 @@ export const authMiddleware = (req, res, next) => {
   }
 
   if (!token) {
-    return res.status(401).json({ message: "Unauthorized" });
+    console.error("[authMiddleware] No token found in cookies or headers");
+    return res.status(401).json({ message: "Unauthorized: No token provided" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
+    console.log("[authMiddleware] User authenticated:", decoded.id, decoded.role);
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid token" });
+    console.error("[authMiddleware] Token verification failed:", error.message);
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
@@ -27,9 +30,11 @@ export const authMiddleware = (req, res, next) => {
 // **Role-Based Access Middleware**
 export const roleMiddleware = (roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Access Denied" });
+    if (!req.user || !roles.includes(req.user.role)) {
+      console.error("[roleMiddleware] Access denied for role:", req.user?.role);
+      return res.status(403).json({ message: "Access Denied: Insufficient permissions" });
     }
+    console.log("[roleMiddleware] Access granted for role:", req.user.role);
     next();
   };
 };
