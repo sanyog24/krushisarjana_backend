@@ -7,6 +7,7 @@ import Product from "../models/product.model.js";
 import cloudinary from "../config/cloudinary.js";
 import { v4 as uuidv4 } from "uuid";
 import Stripe from "stripe";
+import mongoose from "mongoose";
 
 // Ensure Stripe key is set
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -21,12 +22,20 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
  */
 export const createOrder = async (req, res) => {
   try {
+    console.log("[createOrder] Request received");
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error("[createOrder] Database not connected");
+      return res.status(503).json({ message: "Database connection unavailable" });
+    }
+
     const { buyerId, productId, paymentId, subTotalAmount, totalAmount } = req.body;
-    console.log("Buyer : " + buyerId);
-    console.log("Product : " + productId);
-    console.log(paymentId);
-    console.log(subTotalAmount);
-    console.log(totalAmount);
+    console.log("[createOrder] Buyer:", buyerId);
+    console.log("[createOrder] Product:", productId);
+    console.log("[createOrder] Payment ID:", paymentId);
+    console.log("[createOrder] SubTotal:", subTotalAmount);
+    console.log("[createOrder] Total:", totalAmount);
 
     if (!buyerId || !productId || !paymentId || !subTotalAmount || !totalAmount) {
       return res.status(400).json({ message: "All fields are required" });
@@ -71,18 +80,41 @@ export const createOrder = async (req, res) => {
  */
 export const getUserOrders = async (req, res) => {
   try {
+    console.log("[getUserOrders] Request received");
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error("[getUserOrders] Database not connected");
+      return res.status(503).json({ message: "Database connection unavailable" });
+    }
+
     const { userId } = req.params;
-    if (!userId) return res.status(400).json({ message: "User ID is required" });
+    console.log("[getUserOrders] User ID:", userId);
+    
+    if (!userId) {
+      console.error("[getUserOrders] User ID is missing");
+      return res.status(400).json({ message: "User ID is required" });
+    }
 
     const orders = await Order.find({
       $or: [{ "buyer._id": userId }, { "product.seller._id": userId }],
     });
 
-    if (!orders.length) return res.status(404).json({ message: "No orders found" });
+    console.log(`[getUserOrders] Found ${orders.length} orders for user ${userId}`);
+
+    if (!orders.length) {
+      return res.status(200).json([]); // Return empty array instead of 404
+    }
+    
     res.status(200).json(orders);
   } catch (error) {
-    console.error("Get User Orders Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("[getUserOrders] Error:", error);
+    console.error("[getUserOrders] Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Internal Server Error",
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 };
 
