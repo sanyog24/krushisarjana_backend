@@ -75,8 +75,8 @@ export const getUserById = async (req, res) => {
     console.log("Fetching user with ID:", id);
 
     // Check if mongoose is connected
-    if (mongoose.connection.readyState !== 1) {
-      console.error("Database not connected. State:", mongoose.connection.readyState);
+    if (mongoose?.connection?.readyState !== 1) {
+      console.error("Database not connected. State:", mongoose?.connection?.readyState || 'undefined');
       return res.status(503).json({ message: "Database connection unavailable" });
     }
 

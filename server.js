@@ -112,7 +112,8 @@ app.use(async (req, res, next) => {
 
 // ✅ Health check routes
 app.get("/", async (req, res) => {
-  const state = mongoose.connection.readyState;
+  // Safely check connection state
+  const state = mongoose?.connection?.readyState || 0;
   const dbStatus = state === 1 ? 'connected' : state === 2 ? 'connecting' : state === 3 ? 'disconnecting' : 'disconnected';
   
   res.json({ 
@@ -127,7 +128,8 @@ app.get("/", async (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  const state = mongoose.connection.readyState;
+  // Safely check connection state
+  const state = mongoose?.connection?.readyState || 0;
   res.json({ 
     status: "healthy",
     database: state === 1 ? 'connected' : 'disconnected',

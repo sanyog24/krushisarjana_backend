@@ -126,7 +126,7 @@ export const addProduct = async (req, res) => {
     console.log("[addProduct] File:", req.file ? "Present" : "None");
 
     // Check database connection
-    if (mongoose.connection.readyState !== 1) {
+    if (mongoose?.connection?.readyState !== 1) {
       console.error("[addProduct] Database not connected");
       return res.status(503).json({ message: "Database connection unavailable" });
     }
@@ -249,8 +249,8 @@ export const getAllProducts = async (req, res) => {
     console.log("[getAllProducts] Request received");
     
     // Check if mongoose is connected
-    if (mongoose.connection.readyState !== 1) {
-      console.error("[getAllProducts] Database not connected. State:", mongoose.connection.readyState);
+    if (mongoose?.connection?.readyState !== 1) {
+      console.error("[getAllProducts] Database not connected. State:", mongoose?.connection?.readyState || 'undefined');
       return res.status(503).json({ message: "Database connection unavailable" });
     }
 

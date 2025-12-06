@@ -25,7 +25,7 @@ export const createOrder = async (req, res) => {
     console.log("[createOrder] Request received");
     
     // Check database connection
-    if (mongoose.connection.readyState !== 1) {
+    if (mongoose?.connection?.readyState !== 1) {
       console.error("[createOrder] Database not connected");
       return res.status(503).json({ message: "Database connection unavailable" });
     }
@@ -83,7 +83,7 @@ export const getUserOrders = async (req, res) => {
     console.log("[getUserOrders] Request received");
     
     // Check database connection
-    if (mongoose.connection.readyState !== 1) {
+    if (mongoose?.connection?.readyState !== 1) {
       console.error("[getUserOrders] Database not connected");
       return res.status(503).json({ message: "Database connection unavailable" });
     }
