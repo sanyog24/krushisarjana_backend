@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
+import mongoose from "mongoose";
 
 // **Register User**
 export const registerUser = async (req, res) => {
@@ -71,7 +72,13 @@ export const logoutUser = (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    // console.log("Fetching user with ID:", id); // Debug log
+    console.log("Fetching user with ID:", id);
+
+    // Check if mongoose is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.error("Database not connected. State:", mongoose.connection.readyState);
+      return res.status(503).json({ message: "Database connection unavailable" });
+    }
 
     const user = await User.findById(id).select("-password");
     
@@ -80,10 +87,15 @@ export const getUserById = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // console.log("User data:", user); // Log the fetched user
+    console.log("User fetched successfully:", user._id);
     res.json(user);
   } catch (error) {
     console.error("Error fetching user:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Server error",
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 };

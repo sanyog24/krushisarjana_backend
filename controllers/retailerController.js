@@ -219,15 +219,29 @@ export const getProducts = async (req, res) => {
 // ✅ Get All Products (Uploaded by all Retailers)
 export const getAllProducts = async (req, res) => {
   try {
+    console.log("[getAllProducts] Request received");
+    
+    // Check if mongoose is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.error("[getAllProducts] Database not connected. State:", mongoose.connection.readyState);
+      return res.status(503).json({ message: "Database connection unavailable" });
+    }
+
     // ✅ Fetch products from both Retailers & Farmers
     const products = await Product.find({
       sellerType: { $in: ["Retailer", "Farmer"] }, // Fetch all types
     });
 
+    console.log(`[getAllProducts] Found ${products.length} products`);
     res.status(200).json(products);
   } catch (error) {
-    console.error("Get All Products Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("[getAllProducts] Error:", error);
+    console.error("[getAllProducts] Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Internal Server Error",
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 };
 
