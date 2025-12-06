@@ -13,17 +13,6 @@ import orderRoutes from './routes/order.route.js'
 // ✅ Load environment variables
 dotenv.config();
 
-// ✅ Connect to Database
-const startServer = async () => {
-  try {
-    await connectDB();
-    console.log("MongoDB Connected Successfully");
-  } catch (error) {
-    console.error("Database Connection Failed:", error);
-    process.exit(1); // Exit if DB fails to connect
-  }
-};
-
 // ✅ Initialize Express App
 const app = express();
 
@@ -38,7 +27,33 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Routes
+// ✅ Connect to Database (for Vercel serverless)
+let isConnected = false;
+const connectToDatabase = async () => {
+  if (isConnected) {
+    console.log("Using existing database connection");
+    return;
+  }
+  try {
+    await connectDB();
+    isConnected = true;
+    console.log("MongoDB Connected Successfully");
+  } catch (error) {
+    console.error("Database Connection Failed:", error);
+    throw error;
+  }
+};
+
+// ✅ Routes with DB connection middleware
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    res.status(500).json({ message: "Database connection failed" });
+  }
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/retailers", retailerRoutes);
 app.use("/api/products", productRoutes)
@@ -46,15 +61,25 @@ app.use("/api/customers", customerRoutes)
 app.use("/api/farmers", farmerRoutes)
 app.use("/api/orders", orderRoutes)
 
+// ✅ Health check route
+app.get("/", (req, res) => {
+  res.json({ message: "Backend is running!", status: "healthy" });
+});
+
 // ✅ Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
   res.status(500).json({ message: "Internal Server Error" });
 });
 
-// ✅ Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
-  await startServer();
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// ✅ Start Server (for local development)
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, async () => {
+    await connectToDatabase();
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
+
+// ✅ Export for Vercel serverless
+export default app;
