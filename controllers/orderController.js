@@ -112,8 +112,12 @@ export const getUserOrders = async (req, res) => {
       return res.status(400).json({ message: "User ID is required" });
     }
 
+    // Convert userId string to ObjectId for proper MongoDB query
+    const objectId = new mongoose.Types.ObjectId(userId);
+    console.log("[getUserOrders] Converted to ObjectId:", objectId);
+
     const orders = await Order.find({
-      $or: [{ "buyer._id": userId }, { "product.seller._id": userId }],
+      $or: [{ "buyer._id": objectId }, { "product.seller._id": objectId }],
     });
 
     console.log(`[getUserOrders] Found ${orders.length} orders for user ${userId}`);
