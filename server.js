@@ -34,6 +34,7 @@ if (!cached) {
 
 async function dbConnect() {
   if (cached.conn) {
+    console.log('Using cached database connection');
     return cached.conn;
   }
 
@@ -41,22 +42,28 @@ async function dbConnect() {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     };
 
-    cached.promise = mongoose.connect(process.env.MONGODB_URI, opts).then((mongoose) => {
-      console.log('MongoDB Connected');
-      return mongoose;
-    }).catch((error) => {
-      console.error('MongoDB Connection Error:', error);
-      cached.promise = null;
-      throw error;
-    });
+    console.log('Creating new database connection...');
+    cached.promise = mongoose.connect(process.env.MONGODB_URI, opts)
+      .then((mongoose) => {
+        console.log('✅ MongoDB Connected');
+        return mongoose;
+      })
+      .catch((error) => {
+        console.error('❌ MongoDB Connection Error:', error.message);
+        cached.promise = null;
+        throw error;
+      });
   }
 
   try {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    console.error('❌ Failed to establish database connection:', e.message);
     throw e;
   }
 
@@ -64,15 +71,31 @@ async function dbConnect() {
 }
 
 // ✅ Connect DB on startup
-dbConnect().catch(console.error);
+dbConnect().catch(err => {
+  console.error('Initial database connection failed:', err.message);
+});
 
 // ✅ Health check routes
-app.get("/", (req, res) => {
+app.get("/", async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    if (mongoose.connection.readyState === 1) {
+      dbStatus = 'connected';
+    } else {
+      // Try to reconnect if disconnected
+      await dbConnect();
+      dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    }
+  } catch (error) {
+    console.error('DB check error:', error.message);
+  }
+  
   res.json({ 
     message: "Krushi Sarjana Backend API", 
     status: "healthy",
     timestamp: new Date().toISOString(),
-    dbStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    dbStatus,
+    env: process.env.NODE_ENV || 'development'
   });
 });
 
