@@ -21,6 +21,10 @@ router.post("/checkout", async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid order items" });
     }
 
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
     const lineItems = items.map((item) => ({
       price_data: {
         currency: "inr",
@@ -30,15 +34,20 @@ router.post("/checkout", async (req, res) => {
       quantity: item.quantity,
     }));
 
+    // Store order details in metadata to create order after payment
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
       mode: "payment",
       success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.CLIENT_URL}/cancel`,
-      metadata: { userId },
+      metadata: { 
+        userId,
+        orderData: JSON.stringify(items) // Store product details
+      },
     });
 
+    console.log("[Checkout] Session created:", session.id, "for user:", userId);
     res.json({ success: true, sessionId: session.id });
   } catch (error) {
     console.error("Checkout Session Error:", error);
