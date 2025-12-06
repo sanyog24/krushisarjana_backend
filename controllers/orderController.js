@@ -24,10 +24,18 @@ export const createOrder = async (req, res) => {
   try {
     console.log("[createOrder] Request received");
     
-    // Check database connection
+    // Check database connection - try reconnection if needed
     if (mongoose?.connection?.readyState !== 1) {
-      console.error("[createOrder] Database not connected");
-      return res.status(503).json({ message: "Database connection unavailable" });
+      console.warn("[createOrder] Database not connected. State:", mongoose?.connection?.readyState || 'undefined', '- Attempting reconnection...');
+      try {
+        if (mongoose.connection.readyState === 0 && process.env.MONGODB_URI) {
+          await mongoose.connect(process.env.MONGODB_URI);
+          console.log("[createOrder] Reconnection successful");
+        }
+      } catch (reconnectError) {
+        console.error("[createOrder] Reconnection failed:", reconnectError.message);
+        return res.status(503).json({ message: "Database connection unavailable", error: reconnectError.message });
+      }
     }
 
     const { buyerId, productId, paymentId, subTotalAmount, totalAmount } = req.body;
@@ -82,10 +90,18 @@ export const getUserOrders = async (req, res) => {
   try {
     console.log("[getUserOrders] Request received");
     
-    // Check database connection
+    // Check database connection - try reconnection if needed
     if (mongoose?.connection?.readyState !== 1) {
-      console.error("[getUserOrders] Database not connected");
-      return res.status(503).json({ message: "Database connection unavailable" });
+      console.warn("[getUserOrders] Database not connected. State:", mongoose?.connection?.readyState || 'undefined', '- Attempting reconnection...');
+      try {
+        if (mongoose.connection.readyState === 0 && process.env.MONGODB_URI) {
+          await mongoose.connect(process.env.MONGODB_URI);
+          console.log("[getUserOrders] Reconnection successful");
+        }
+      } catch (reconnectError) {
+        console.error("[getUserOrders] Reconnection failed:", reconnectError.message);
+        return res.status(503).json({ message: "Database connection unavailable", error: reconnectError.message });
+      }
     }
 
     const { userId } = req.params;

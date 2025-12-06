@@ -248,10 +248,18 @@ export const getAllProducts = async (req, res) => {
   try {
     console.log("[getAllProducts] Request received");
     
-    // Check if mongoose is connected
+    // Check if mongoose is connected - try reconnection if needed
     if (mongoose?.connection?.readyState !== 1) {
-      console.error("[getAllProducts] Database not connected. State:", mongoose?.connection?.readyState || 'undefined');
-      return res.status(503).json({ message: "Database connection unavailable" });
+      console.warn("[getAllProducts] Database not connected. State:", mongoose?.connection?.readyState || 'undefined', '- Attempting reconnection...');
+      try {
+        if (mongoose.connection.readyState === 0 && process.env.MONGODB_URI) {
+          await mongoose.connect(process.env.MONGODB_URI);
+          console.log("[getAllProducts] Reconnection successful");
+        }
+      } catch (reconnectError) {
+        console.error("[getAllProducts] Reconnection failed:", reconnectError.message);
+        return res.status(503).json({ message: "Database connection unavailable", error: reconnectError.message });
+      }
     }
 
     // ✅ Fetch products from both Retailers & Farmers

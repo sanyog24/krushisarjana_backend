@@ -96,17 +96,26 @@ async function dbConnect() {
   return cached.conn;
 }
 
-// ✅ Middleware to ensure DB connection before each request
+// ✅ Middleware to ensure DB connection before API requests (skip health checks)
 app.use(async (req, res, next) => {
+  // Skip DB connection check for health endpoints
+  if (req.path === '/' || req.path === '/api/health') {
+    return next();
+  }
+  
   try {
-    await dbConnect();
+    // Try to connect with a timeout
+    const dbPromise = dbConnect();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('DB connection timeout')), 8000)
+    );
+    
+    await Promise.race([dbPromise, timeoutPromise]);
     next();
   } catch (error) {
-    console.error('DB Connection middleware error:', error);
-    res.status(503).json({ 
-      message: 'Database connection unavailable',
-      error: error.message 
-    });
+    console.error('[DB Middleware] Connection error:', error.message);
+    // Don't block the request, let the route handler deal with it
+    next();
   }
 });
 

@@ -74,10 +74,18 @@ export const getUserById = async (req, res) => {
     const { id } = req.params;
     console.log("Fetching user with ID:", id);
 
-    // Check if mongoose is connected
+    // Check if mongoose is connected - try reconnection if needed
     if (mongoose?.connection?.readyState !== 1) {
-      console.error("Database not connected. State:", mongoose?.connection?.readyState || 'undefined');
-      return res.status(503).json({ message: "Database connection unavailable" });
+      console.warn("Database not connected. State:", mongoose?.connection?.readyState || 'undefined', '- Attempting reconnection...');
+      try {
+        if (mongoose.connection.readyState === 0 && process.env.MONGODB_URI) {
+          await mongoose.connect(process.env.MONGODB_URI);
+          console.log("[getUserById] Reconnection successful");
+        }
+      } catch (reconnectError) {
+        console.error("[getUserById] Reconnection failed:", reconnectError.message);
+        return res.status(503).json({ message: "Database connection unavailable", error: reconnectError.message });
+      }
     }
 
     const user = await User.findById(id).select("-password");
