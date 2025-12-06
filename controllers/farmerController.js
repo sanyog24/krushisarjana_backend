@@ -2,6 +2,7 @@ import Farmer from "../models/farmer.model.js";
 import User from "../models/user.model.js";
 import cloudinary from "../config/cloudinary.js"; // Assuming Cloudinary is set up in config
 import mongoose from "mongoose";
+import uploadToCloudinary from "../utils/uploadToCloudinary.js";
 
 /**
  * @desc    Create or Update Farmer Profile
@@ -33,9 +34,7 @@ export const upsertFarmer = async (req, res) => {
     // Handle profile image upload
     let profileUrl = farmer?.profileUrl || "https://example.com/default-profile.png";
     if (req.file) {
-      const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-        folder: "farmers",
-      });
+      const uploadedImage = await uploadToCloudinary(req.file.buffer, "farmers");
       profileUrl = uploadedImage.secure_url;
     }
 

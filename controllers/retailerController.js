@@ -2,7 +2,8 @@
 import Retailer from "../models/retailer.model.js";
 import cloudinary from "../config/cloudinary.js";
 import Product from "../models/product.model.js";
-import User from "../models/user.model.js"
+import User from "../models/user.model.js";
+import uploadToCloudinary from "../utils/uploadToCloudinary.js";
 
 // ✅ Get Retailer Profile
 export const getRetailerProfile = async (req, res) => {
@@ -54,9 +55,10 @@ export const upsertRetailerProfile = async (req, res) => {
     // Upload image to Cloudinary if a new file is provided
     if (req.file) {
       console.log("🔹 Uploading Image to Cloudinary...");
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "retailer_profiles", // Cloudinary folder
-        transformation: [{ width: 500, height: 500, crop: "limit" }],
+      const result = await uploadToCloudinary(req.file.buffer, "retailer_profiles", {
+        width: 500,
+        height: 500,
+        crop: "limit"
       });
 
       profileUrl = result.secure_url; // Save Cloudinary URL
@@ -126,9 +128,7 @@ export const addProduct = async (req, res) => {
 
     let imageUrl = "";
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "product_images",
-      });
+      const result = await uploadToCloudinary(req.file.buffer, "product_images");
       imageUrl = result.secure_url;
     }
 
@@ -191,9 +191,7 @@ export const editProduct = async (req, res) => {
 
     let imageUrl = product.image;
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "product_images",
-      });
+      const result = await uploadToCloudinary(req.file.buffer, "product_images");
       imageUrl = result.secure_url;
     }
 

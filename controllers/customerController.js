@@ -1,5 +1,6 @@
 import Customer from "../models/customer.model.js";
 import cloudinary from "../config/cloudinary.js";
+import uploadToCloudinary from "../utils/uploadToCloudinary.js";
 
 /**
  * @desc   Create or Update Customer Profile
@@ -35,12 +36,13 @@ export const upsertCustomer = async (req, res) => {
     let profileUrl;
 
     // Handle Image Upload to Cloudinary
-    if (req.file && req.file.path) {
+    if (req.file && req.file.buffer) {
       try {
         console.log("⏳ Uploading image to Cloudinary...");
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "customer_profiles",
-          transformation: [{ width: 300, height: 300, crop: "fill" }],
+        const result = await uploadToCloudinary(req.file.buffer, "customer_profiles", {
+          width: 300,
+          height: 300,
+          crop: "fill"
         });
         profileUrl = result.secure_url;
         console.log("✅ Image uploaded successfully:", profileUrl);
