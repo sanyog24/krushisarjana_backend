@@ -98,7 +98,7 @@ export const createOrder = async (req, res) => {
       paymentStatus: finalPaymentStatus,
       subTotalAmount,
       totalAmount,
-      orderStatus: finalPaymentStatus === "Paid" ? "Confirmed" : "Pending",
+      orderStatus: finalPaymentStatus === "Paid" ? "Accepted" : "Pending",
     });
 
     console.log("[createOrder] New order object:", JSON.stringify(newOrder, null, 2));
