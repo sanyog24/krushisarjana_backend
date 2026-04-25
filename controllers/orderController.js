@@ -38,10 +38,12 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    const { buyerId, productId, paymentId, subTotalAmount, totalAmount } = req.body;
+    const { buyerId, productId, paymentId, subTotalAmount, totalAmount, paymentStatus, paymentMethod } = req.body;
     console.log("[createOrder] Buyer:", buyerId);
     console.log("[createOrder] Product:", productId);
     console.log("[createOrder] Payment ID:", paymentId);
+    console.log("[createOrder] Payment Method:", paymentMethod);
+    console.log("[createOrder] Payment Status:", paymentStatus);
     console.log("[createOrder] SubTotal:", subTotalAmount);
     console.log("[createOrder] Total:", totalAmount);
 
@@ -61,6 +63,10 @@ export const createOrder = async (req, res) => {
     if (!seller) return res.status(404).json({ message: "Seller not found" });
     console.log("[createOrder] Seller found:", seller._id, seller.name);
 
+    // Use provided payment status or default to "Pending"
+    const finalPaymentStatus = paymentStatus || "Pending";
+    const finalPaymentMethod = paymentMethod || "Unknown";
+
     const newOrder = new Order({
       orderId: uuidv4(),
       buyer: { 
@@ -79,10 +85,11 @@ export const createOrder = async (req, res) => {
         },
       },
       paymentId,
-      paymentStatus: "Pending",
+      paymentMethod: finalPaymentMethod,
+      paymentStatus: finalPaymentStatus,
       subTotalAmount,
       totalAmount,
-      orderStatus: "Pending",
+      orderStatus: finalPaymentStatus === "Paid" ? "Confirmed" : "Pending",
     });
 
     console.log("[createOrder] New order object:", JSON.stringify(newOrder, null, 2));
