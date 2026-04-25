@@ -12,6 +12,20 @@ import uploadToCloudinary from "../utils/uploadToCloudinary.js";
 export const upsertFarmer = async (req, res) => {
   try {
     const userId = req.user.id; // Assuming user is authenticated via middleware
+    
+    // Parse address if it's sent as JSON string (from mobile app)
+    let addressData = {};
+    if (req.body.address) {
+      try {
+        addressData = typeof req.body.address === 'string' 
+          ? JSON.parse(req.body.address) 
+          : req.body.address;
+      } catch (e) {
+        console.error("Error parsing address:", e);
+        addressData = {};
+      }
+    }
+    
     const {
       name,
       phone,
@@ -24,6 +38,15 @@ export const upsertFarmer = async (req, res) => {
       products,
     } = req.body;
 
+    // Use parsed address data or individual fields
+    const addressFields = {
+      street: addressData.street || street || '',
+      city: addressData.city || city || '',
+      state: addressData.state || state || '',
+      pincode: addressData.pincode || pincode || '',
+      country: addressData.country || country || 'India',
+    };
+
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized access" });
     }
@@ -32,42 +55,62 @@ export const upsertFarmer = async (req, res) => {
     let farmer = await Farmer.findOne({ user: userId });
 
     // Handle profile image upload
-    let profileUrl = farmer?.profileUrl || "https://example.com/default-profile.png";
+    let profileUrl = farmer?.profileUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
     if (req.file) {
-      const uploadedImage = await uploadToCloudinary(req.file.buffer, "farmers");
-      profileUrl = uploadedImage.secure_url;
+      try {
+        const uploadedImage = await uploadToCloudinary(req.file.buffer, "farmers");
+        profileUrl = uploadedImage.secure_url;
+      } catch (uploadError) {
+        console.error("Error uploading image:", uploadError);
+        // Continue without updating profile image
+      }
     }
 
     if (!farmer) {
       // Create a new farmer profile
       farmer = new Farmer({
         user: userId,
-        name,
-        contact: { phone, email },
-        address: { street, city, state, pincode, country },
+        name: name || '',
+        contact: { 
+          phone: phone || '', 
+          email: email || req.user.email || '' 
+        },
+        address: addressFields,
         profileUrl,
         products: products ? products.split(",") : [],
       });
     } else {
       // Update existing farmer profile
-      farmer.name = name;
-      farmer.contact.phone = phone;
-      farmer.contact.email = email;
-      farmer.address.street = street;
-      farmer.address.city = city;
-      farmer.address.state = state;
-      farmer.address.pincode = pincode;
-      farmer.address.country = country;
+      if (name) farmer.name = name;
+      if (phone) farmer.contact.phone = phone;
+      if (email) farmer.contact.email = email;
+      
+      // Update address fields
+      farmer.address = {
+        ...farmer.address,
+        ...addressFields
+      };
+      
       farmer.profileUrl = profileUrl;
-      farmer.products = products ? products.split(",") : farmer.products;
+      if (products) farmer.products = products.split(",");
     }
 
     const savedFarmer = await farmer.save();
-    res.status(200).json({ message: "Farmer profile updated", farmer: savedFarmer });
+    res.status(200).json({ 
+      success: true,
+      message: "Farmer profile updated", 
+      farmer: savedFarmer 
+    });
 
   } catch (error) {
     console.error("Error in upsertFarmer:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error details:", error.message);
+    console.error("Stack trace:", error.stack);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal Server Error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

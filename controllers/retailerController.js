@@ -49,72 +49,100 @@ export const upsertRetailerProfile = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: User not authenticated" });
     }
 
+    // Parse address if it's sent as JSON string (from mobile app)
+    let addressData = {};
+    if (req.body.address) {
+      try {
+        addressData = typeof req.body.address === 'string' 
+          ? JSON.parse(req.body.address) 
+          : req.body.address;
+      } catch (e) {
+        console.error("Error parsing address:", e);
+        addressData = {};
+      }
+    }
+
     let retailer = await Retailer.findOne({ user: req.user.id });
 
-    let profileUrl = retailer?.profileUrl || "";
+    let profileUrl = retailer?.profileUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
 
     // Upload image to Cloudinary if a new file is provided
     if (req.file) {
-      console.log("🔹 Uploading Image to Cloudinary...");
-      const result = await uploadToCloudinary(req.file.buffer, "retailer_profiles", {
-        width: 500,
-        height: 500,
-        crop: "limit"
-      });
+      try {
+        console.log("🔹 Uploading Image to Cloudinary...");
+        const result = await uploadToCloudinary(req.file.buffer, "retailer_profiles", {
+          width: 500,
+          height: 500,
+          crop: "limit"
+        });
 
-      profileUrl = result.secure_url; // Save Cloudinary URL
-      console.log("✅ Image Uploaded to Cloudinary:", profileUrl);
+        profileUrl = result.secure_url; // Save Cloudinary URL
+        console.log("✅ Image Uploaded to Cloudinary:", profileUrl);
+      } catch (uploadError) {
+        console.error("❌ Cloudinary Upload Error:", uploadError);
+        // Continue without updating profile image
+      }
     }
+
+    // Support both formats for address fields
+    const addressFields = {
+      street: addressData.street || req.body.street || '',
+      city: addressData.city || req.body.city || '',
+      state: addressData.state || req.body.state || '',
+      pincode: addressData.pincode || req.body.pincode || '',
+      country: addressData.country || req.body.country || 'India',
+    };
 
     if (retailer) {
       console.log("🔹 Updating Retailer Profile...");
       retailer.set({
-        name: req.body.name,
-        shopName: req.body.shopName,
-        shopDescription: req.body.shopDescription,
+        name: req.body.name || retailer.name,
+        shopName: req.body.shopName || retailer.shopName,
+        shopDescription: req.body.shopDescription || retailer.shopDescription,
         profileUrl,
         contact: {
-          phone: req.body.phone,
-          email: req.body.email,
+          phone: req.body.phone || retailer.contact?.phone || '',
+          email: req.body.email || retailer.contact?.email || '',
         },
-        address: {
-          street: req.body.street,
-          city: req.body.city,
-          state: req.body.state,
-          pincode: req.body.pincode,
-          country: req.body.country,
-        },
+        address: addressFields,
       });
 
       await retailer.save();
-      return res.status(200).json({ message: "Retailer profile updated", retailer });
+      return res.status(200).json({ 
+        success: true,
+        message: "Retailer profile updated", 
+        retailer 
+      });
     } else {
       console.log("🔹 Creating New Retailer Profile...");
       const newRetailer = new Retailer({
         user: req.user.id,
-        name: req.body.name,
-        shopName: req.body.shopName,
-        shopDescription: req.body.shopDescription,
+        name: req.body.name || '',
+        shopName: req.body.shopName || '',
+        shopDescription: req.body.shopDescription || '',
         profileUrl,
         contact: {
-          phone: req.body.phone,
-          email: req.body.email,
+          phone: req.body.phone || '',
+          email: req.body.email || '',
         },
-        address: {
-          street: req.body.street,
-          city: req.body.city,
-          state: req.body.state,
-          pincode: req.body.pincode,
-          country: req.body.country,
-        },
+        address: addressFields,
       });
 
       await newRetailer.save();
-      return res.status(201).json({ message: "Retailer profile created", retailer: newRetailer });
+      return res.status(201).json({ 
+        success: true,
+        message: "Retailer profile created", 
+        retailer: newRetailer 
+      });
     }
   } catch (error) {
     console.error("❌ [ERROR] Upsert Retailer Profile Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error details:", error.message);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal Server Error",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

@@ -23,15 +23,28 @@ export const upsertCustomer = async (req, res) => {
       return res.status(400).json({ success: false, message: "Request body is empty. Ensure correct Content-Type is used." });
     }
 
-    // Parse fields explicitly
+    // Parse address if it's sent as JSON string (from mobile app)
+    let addressData = {};
+    if (req.body.address) {
+      try {
+        addressData = typeof req.body.address === 'string' 
+          ? JSON.parse(req.body.address) 
+          : req.body.address;
+      } catch (e) {
+        console.error("Error parsing address:", e);
+        addressData = {};
+      }
+    }
+
+    // Parse fields explicitly - support both formats
     const name = req.body.name?.trim() || "";
     const phone = req.body.phone?.trim() || "";
     const email = req.body.email?.trim() || "";
-    const street = req.body.street?.trim() || "";
-    const city = req.body.city?.trim() || "";
-    const state = req.body.state?.trim() || "";
-    const pincode = req.body.pincode?.trim() || "";
-    const country = req.body.country?.trim() || "";
+    const street = addressData.street || req.body.street?.trim() || "";
+    const city = addressData.city || req.body.city?.trim() || "";
+    const state = addressData.state || req.body.state?.trim() || "";
+    const pincode = addressData.pincode || req.body.pincode?.trim() || "";
+    const country = addressData.country || req.body.country?.trim() || "India";
 
     let profileUrl;
 
@@ -48,7 +61,7 @@ export const upsertCustomer = async (req, res) => {
         console.log("✅ Image uploaded successfully:", profileUrl);
       } catch (uploadError) {
         console.error("❌ Cloudinary Upload Error:", uploadError);
-        return res.status(500).json({ success: false, message: "Image upload failed. Please try again." });
+        // Continue without updating profile image
       }
     }
 
@@ -69,7 +82,7 @@ export const upsertCustomer = async (req, res) => {
         city: city !== "" ? city : customer.address?.city || "",
         state: state !== "" ? state : customer.address?.state || "",
         pincode: pincode !== "" ? pincode : customer.address?.pincode || "",
-        country: country !== "" ? country : customer.address?.country || "",
+        country: country !== "" ? country : customer.address?.country || "India",
       };
 
       if (profileUrl) customer.profileUrl = profileUrl;
@@ -85,7 +98,7 @@ export const upsertCustomer = async (req, res) => {
         name,
         contact: { phone, email },
         address: { street, city, state, pincode, country },
-        profileUrl: profileUrl || "https://example.com/default-profile.png",
+        profileUrl: profileUrl || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
       });
 
       await customer.save();
@@ -94,7 +107,12 @@ export const upsertCustomer = async (req, res) => {
     }
   } catch (error) {
     console.error("❌ Error in upsertCustomer:", error);
-    res.status(500).json({ success: false, message: "Server error. Please try again." });
+    console.error("Error details:", error.message);
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error. Please try again.",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
