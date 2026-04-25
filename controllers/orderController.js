@@ -58,9 +58,18 @@ export const createOrder = async (req, res) => {
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
     console.log("[createOrder] Product found:", product._id, product.name);
+    console.log("[createOrder] Product seller ID:", product.seller);
+
+    if (!product.seller) {
+      console.error("[createOrder] Product has no seller assigned");
+      return res.status(400).json({ message: "Product has no seller assigned" });
+    }
 
     const seller = await User.findById(product.seller);
-    if (!seller) return res.status(404).json({ message: "Seller not found" });
+    if (!seller) {
+      console.error("[createOrder] Seller not found for ID:", product.seller);
+      return res.status(404).json({ message: "Seller not found" });
+    }
     console.log("[createOrder] Seller found:", seller._id, seller.name);
 
     // Use provided payment status or default to "Pending"
@@ -98,7 +107,12 @@ export const createOrder = async (req, res) => {
     res.status(201).json({ message: "Order placed successfully", order: newOrder });
   } catch (error) {
     console.error("Create Order Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Internal Server Error",
+      error: error.message,
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
   }
 };
 
